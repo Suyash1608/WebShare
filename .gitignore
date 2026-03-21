@@ -1,0 +1,26 @@
+# TLS & certificates — never commit these
+WebShare/certificates/
+*.jks
+*.pem
+*.p12
+*.cer
+
+# Build output
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.class
+
+# Logs
+*.log
+WebShare/logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# mkcert bundled binary (large binary file — download separately)
+src/main/resources/mkcert/

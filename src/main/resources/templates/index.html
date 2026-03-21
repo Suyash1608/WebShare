@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>WebShare</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0d10;--surface:#13141a;--surface2:#1a1c24;--border:#2a2d3a;
+  --accent:#4fffb0;--accent2:#ff6b6b;--accent3:#4d9fff;
+  --text:#e8eaf0;--muted:#6b7280;
+  --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+  --radius:14px;--radius-sm:8px;
+}
+[data-theme="light"]{
+  --bg:#f0f2f5;--surface:#fff;--surface2:#f5f7fa;--border:#dde1ea;
+  --accent:#00a86b;--accent2:#e03e3e;--accent3:#2563eb;
+  --text:#1a1d27;--muted:#8a93a8;
+}
+html{font-size:16px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;transition:background .25s,color .25s}
+
+/* ── Header ── */
+.header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 20px;height:56px;display:flex;align-items:center;gap:8px;
+  position:sticky;top:0;z-index:100;
+}
+.logo-icon{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;flex-shrink:0;overflow:hidden}
+.logo-text{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--text);white-space:nowrap}
+.logo-text span{color:var(--accent)}
+.hbadge{font-family:var(--mono);font-size:9px;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:20px;letter-spacing:.5px;white-space:nowrap}
+.hspace{flex:1}
+.count-badge{font-family:var(--mono);font-size:10px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.header-btn{font-family:var(--mono);font-size:10px;padding:6px 12px;border-radius:20px;cursor:pointer;white-space:nowrap;flex-shrink:0;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all .2s;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.header-btn:hover{border-color:var(--accent);color:var(--accent)}
+.header-btn.upload-btn{border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent)}
+.header-btn.upload-btn:hover{background:color-mix(in srgb,var(--accent) 20%,transparent)}
+.header-btn.logout-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.header-btn.hidden{display:none}
+#fileInput{display:none}
+
+/* ── Progress bar ── */
+.upload-bar{height:3px;background:transparent}
+.upload-bar.active{background:var(--surface2)}
+.upload-fill{height:100%;width:0%;background:var(--accent);transition:width .3s;border-radius:2px}
+
+/* ── Main ── */
+.main{padding:20px;max-width:1000px;margin:0 auto}
+
+/* ── File list — works on all screen sizes ── */
+.file-list{display:flex;flex-direction:column;gap:10px}
+
+.file-item{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+  transition:background .15s,transform .15s;
+  position:relative;overflow:hidden;
+}
+.file-item::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:linear-gradient(180deg,var(--accent),var(--accent3));
+  opacity:0;transition:opacity .2s;
+}
+.file-item:hover{background:var(--surface2);}
+.file-item:hover::before{opacity:1}
+
+.ext-badge{
+  font-family:var(--mono);font-size:10px;padding:4px 7px;
+  border-radius:6px;font-weight:700;min-width:42px;
+  text-align:center;flex-shrink:0;line-height:1.4;
+}
+.ext-pdf{background:rgba(239,68,68,.15);color:#ef4444}
+.ext-zip,.ext-rar{background:rgba(245,158,11,.15);color:#f59e0b}
+.ext-xlsx,.ext-xls,.ext-csv{background:rgba(16,185,129,.15);color:#10b981}
+.ext-mp3,.ext-wav,.ext-flac{background:rgba(139,92,246,.15);color:#8b5cf6}
+.ext-html,.ext-htm,.ext-css,.ext-js{background:rgba(59,130,246,.15);color:#3b82f6}
+.ext-png,.ext-jpg,.ext-jpeg,.ext-gif,.ext-webp{background:rgba(236,72,153,.15);color:#ec4899}
+.ext-default{background:rgba(107,114,128,.15);color:#6b7280}
+
+.file-info{flex:1;min-width:0}
+.file-name{
+  font-size:14px;font-weight:500;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  margin-bottom:3px;
+}
+.file-meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+.dl-btn{
+  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+  background:color-mix(in srgb,var(--accent) 10%,transparent);
+  color:var(--accent);
+  border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  padding:8px 14px;border-radius:var(--radius-sm);
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+}
+.dl-btn:hover{
+  background:color-mix(in srgb,var(--accent) 20%,transparent);
+  border-color:var(--accent);transform:translateY(-1px);
+}
+.dl-btn svg{width:12px;height:12px;flex-shrink:0}
+
+/* ── Section header ── */
+.section-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;
+}
+.section-title{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1.5px}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty-icon{font-size:40px;opacity:.25;display:block;margin-bottom:12px}
+.empty-text{font-family:var(--mono);font-size:11px;letter-spacing:1.2px}
+
+/* ── Toast ── */
+.toast{
+  position:fixed;bottom:20px;right:20px;
+  background:var(--surface);border:1px solid var(--accent);
+  color:var(--accent);font-family:var(--mono);font-size:11px;
+  padding:10px 16px;border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:9999;
+  transform:translateY(80px);opacity:0;transition:all .3s;
+  max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{border-color:var(--accent2);color:var(--accent2)}
+
+/* ── Connecting indicator ── */
+.connecting{
+  text-align:center;padding:12px;font-family:var(--mono);
+  font-size:11px;color:var(--muted);letter-spacing:1px;
+}
+
+/* ── Responsive breakpoints ── */
+@media(max-width:480px){
+  .header{padding:0 14px;gap:6px;height:52px}
+  .hbadge,.count-badge{display:none}
+  .logo-text{font-size:14px}
+  .header-btn{font-size:9px;padding:5px 10px}
+  .main{padding:14px}
+  .file-item{padding:12px 14px;gap:10px}
+  .file-name{font-size:13px}
+  .dl-btn{padding:7px 12px;font-size:9px}
+}
+@media(max-width:360px){
+  .logo-text{display:none}
+  .dl-btn span{display:none}
+  .dl-btn{padding:8px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo-icon">
+    <img src="/logo" width="32" height="32"
+         style="border-radius:8px;display:block;object-fit:contain;" alt="WS"
+         onerror="this.parentElement.innerHTML='WS';this.parentElement.style.cssText='background:linear-gradient(135deg,#4fffb0,#4d9fff);font-family:monospace;font-weight:700;color:white;font-size:11px;display:grid;place-items:center;border-radius:8px'">
+  </div>
+  <div class="logo-text">Web<span>Share</span></div>
+  <div class="hbadge">LOCAL FILES</div>
+  <div class="hspace"></div>
+  <div class="count-badge" id="cntBadge">0 files</div>
+  <button class="header-btn upload-btn hidden" id="uploadBtn"
+          onclick="document.getElementById('fileInput').click()" type="button">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V7M7 12l5-5 5 5M3 20h18"/></svg>
+    <span>UPLOAD</span>
+  </button>
+  <input type="file" id="fileInput" multiple onchange="doUpload(this.files)">
+  <button class="header-btn" id="themeBtn" onclick="toggleTheme()" type="button">&#9728;</button>
+  <a href="/logout" class="header-btn logout-btn">EXIT</a>
+</header>
+
+<div class="upload-bar" id="uploadBar">
+  <div class="upload-fill" id="uploadFill"></div>
+</div>
+
+<main class="main">
+  <div class="section-header">
+    <div class="section-title">SHARED FILES</div>
+  </div>
+  <div id="wrap"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+<script src="/js/webshare.js"></script>
+</body>
+</html>
