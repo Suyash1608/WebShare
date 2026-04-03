@@ -14,7 +14,9 @@ import javafx.scene.paint.*;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import javafx.stage.WindowEvent;
 import javafx.animation.*;
 import javafx.util.Duration;
@@ -71,18 +73,19 @@ public class WebShareApplication extends Application {
     private File           uploadFolder;
     private Thread         watcherThread;
 
-    // ── UI nodes ───────────────────────────────────────────────────────────
-    private Stage    primaryStage;
-    private Scene    scene;
+    private Stage      primaryStage;
+    private Scene      scene;
     private BorderPane root;
 
-    private Button powerBtn, themeBtn, uploadToggleBtn, execToggleBtn, removeBtn, clearBtn;
+    private Button powerBtn, themeBtn, helpBtn, uploadToggleBtn, execToggleBtn, removeBtn, clearBtn;
     private Label  uploadMainLbl, uploadSubLbl;
     private Canvas folderIconCanvas;
 
     private Circle    statusDot, powerDot;
     private StackPane toggleTrack, execToggleTrack;
+    private javafx.scene.shape.Rectangle toggleTrackRect, execToggleTrackRect;
     private javafx.scene.shape.Rectangle toggleThumb, execToggleThumb;
+    private Label uploadToggleLbl, execToggleLbl;
 
     private Label      statusTxt, urlVal, qrTitle, qrSub, qrPill, keyLabel, countBadge;
     private Canvas     qrCanvas;
@@ -120,7 +123,6 @@ public class WebShareApplication extends Application {
             } catch (Exception ignored) {}
         }
 
-        // ── Validate share folder ──────────────────────────────────────────
         String folderPath = Utility.createOrGetFolder();
         if (folderPath == null) {
             new Alert(Alert.AlertType.ERROR,
@@ -166,24 +168,297 @@ public class WebShareApplication extends Application {
         buildPulse();
     }
 
-    // ── Clean shutdown ─────────────────────────────────────────────────────
-    private void onClose(WindowEvent e) {
-        stopServer();
-    }
+    private void onClose(WindowEvent e) { stopServer(); }
 
     private void stopServer() {
-        if (server != null) {
-            server.stopServer();
-            server = null;
-        }
-        if (watcherThread != null) {
-            watcherThread.interrupt();
-            watcherThread = null;
-        }
+        if (server != null) { server.stopServer(); server = null; }
+        if (watcherThread != null) { watcherThread.interrupt(); watcherThread = null; }
         sessionManager = null;
     }
 
     public static void main(String[] args) { launch(args); }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Help panel
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Shows the help panel — a styled modal with three sections:
+     *
+     * 1. How to bypass the browser warning (what to do the first time)
+     * 2. How to permanently trust the cert per OS (Windows, Android, iPhone, Mac)
+     * 3. A plain-language explanation of why the warning appears
+     *
+     * This lives in JavaFX rather than the browser page because the browser warning
+     * appears BEFORE the login page loads — instructions there are useless.
+     * The host sees this panel before sharing the URL so they can guide guests.
+     */
+    private void showHelpPanel() {
+        Stage dlg = new Stage();
+        dlg.initOwner(primaryStage);
+        dlg.initModality(Modality.APPLICATION_MODAL);
+        dlg.initStyle(StageStyle.UNDECORATED);
+        dlg.setResizable(false);
+
+        // ── Header ────────────────────────────────────────────────────────
+        Label titleLbl = new Label("Connection & Browser Help");
+        titleLbl.setStyle(mono(14, T.accent) + "-fx-font-weight:bold;");
+
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle(
+            sans(F_SMALL, T.muted) +
+            "-fx-background-color:transparent;-fx-border-color:transparent;" +
+            "-fx-cursor:hand;-fx-padding:4 8 4 8;");
+        closeBtn.setOnMouseEntered(_ -> closeBtn.setStyle(
+            sans(F_SMALL, T.accent2) +
+            "-fx-background-color:transparent;-fx-border-color:transparent;-fx-cursor:hand;-fx-padding:4 8 4 8;"));
+        closeBtn.setOnMouseExited(_ -> closeBtn.setStyle(
+            sans(F_SMALL, T.muted) +
+            "-fx-background-color:transparent;-fx-border-color:transparent;-fx-cursor:hand;-fx-padding:4 8 4 8;"));
+        closeBtn.setOnAction(_ -> dlg.close());
+
+        Region hSpacer = new Region();
+        HBox.setHgrow(hSpacer, Priority.ALWAYS);
+        HBox header = new HBox(titleLbl, hSpacer, closeBtn);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        // ── Section 1: Why the warning appears ───────────────────────────
+        VBox whySection = makeHelpSection(
+            "🔒  Why does the browser show a warning?",
+            T.accent,
+            "WebShare uses HTTPS — your connection is fully encrypted.\n\n" +
+            "The browser warning appears because the certificate was generated locally " +
+            "rather than issued by a public Certificate Authority (like those used by " +
+            "google.com or amazon.com). The encryption is identical — the browser just " +
+            "doesn't recognise who signed it.\n\n" +
+            "You have two options: bypass it once each session, or install the certificate " +
+            "once to make it permanently trusted on that device."
+        );
+
+        // ── Section 2: How to bypass (first time / quick access) ─────────
+        VBox bypassSection = makeHelpSection(
+            "⚡  Bypass the warning (quick, works every time)",
+            T.accent3,
+            null // custom content below
+        );
+
+        // Browser-specific bypass rows
+        String[][] browsers = {
+            { "Chrome / Edge",    "Click  Advanced  →  Proceed to site (unsafe)" },
+            { "Firefox",          "Click  Advanced  →  Accept the Risk and Continue" },
+            { "Safari",           "Click  Show Details  →  visit this website" },
+            { "Android Chrome",   "Tap  Advanced  →  Proceed to site" },
+            { "Samsung Internet", "Tap  Details  →  Proceed to ... (unsafe)" },
+        };
+
+        VBox bypassRows = new VBox(4);
+        for (String[] b : browsers) {
+            HBox row = new HBox(10);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.setPadding(new Insets(6, 10, 6, 10));
+            row.setStyle("-fx-background-color:" + T.surface2 + ";-fx-background-radius:6;");
+
+            Label browserLbl = new Label(b[0]);
+            browserLbl.setStyle(mono(F_SMALL, T.accent3) + "-fx-font-weight:bold;");
+            browserLbl.setMinWidth(130);
+
+            Label stepLbl = new Label(b[1]);
+            stepLbl.setStyle(sans(F_SMALL, T.muted));
+            stepLbl.setWrapText(true);
+
+            row.getChildren().addAll(browserLbl, stepLbl);
+            bypassRows.getChildren().add(row);
+        }
+
+        Label bypassNote = new Label(
+            "The warning will reappear each time you open a new browser session " +
+            "until the certificate is installed — see below.");
+        bypassNote.setStyle(sans(11, T.muted));
+        bypassNote.setWrapText(true);
+
+        bypassSection.getChildren().addAll(bypassRows, bypassNote);
+
+        // ── Section 3: Permanent fix — OS tabs ───────────────────────────
+        VBox permSection = makeHelpSection(
+            "✓  Make it permanently trusted (install once)",
+            T.accent,
+            "Download the certificate from the browser login page and install it " +
+            "on the connecting device. After this, no warning will ever appear again " +
+            "on that device — same as any trusted website."
+        );
+
+        // Tab bar
+        String[] osTitles   = { "Windows", "Android", "iPhone/iPad", "Mac" };
+        VBox[]   osPanels   = new VBox[4];
+        Button[] osBtns     = new Button[4];
+        int[]    selected   = { 0 };
+
+        for (int i = 0; i < 4; i++) {
+            osBtns[i] = new Button(osTitles[i]);
+            int idx = i;
+            osBtns[i].setOnAction(_ -> {
+                selected[0] = idx;
+                updateOsTabs(osBtns, osPanels, idx, T);
+            });
+        }
+
+        // Windows panel
+        osPanels[0] = makeOsPanel(T, new String[][]{
+            { "1", "Open the browser login page and click  Download Certificate (.crt)" },
+            { "2", "Double-click the downloaded  .crt  file" },
+            { "3", "Click  Install Certificate  →  Local Machine  →  Next" },
+            { "4", "Choose  Place all certificates in the following store  →  Browse  →  Trusted Root Certification Authorities  →  OK  →  Next  →  Finish" },
+            { "5", "Restart your browser — no warning will appear again on this device" },
+        }, null);
+
+        // Android panel
+        osPanels[1] = makeOsPanel(T, new String[][]{
+            { "!", "Screen lock required — Android will not install CA certificates without a PIN, pattern, or password. Set one in  Settings → Security → Screen lock  first." },
+            { "1", "Open the browser login page and tap  Download Certificate (.pem)" },
+            { "2", "Open  Settings → Security\n  › Pixel / stock Android:  More security settings → Install from storage\n  › Samsung:  More security settings → Install from device storage\n  › Others:  Encryption & credentials → Install a certificate → CA certificate" },
+            { "3", "Select the downloaded  .pem  file" },
+            { "4", "Name it  WebShare  → tap  CA Certificate  →  Install anyway" },
+            { "5", "Restart Chrome — no warning will appear again on this device" },
+        }, null);
+
+        // iPhone panel
+        osPanels[2] = makeOsPanel(T, new String[][]{
+            { "1", "Open the browser login page and tap  Download Certificate (.mobileconfig)  →  tap  Allow" },
+            { "2", "Open  Settings  →  tap  Profile Downloaded  →  Install  →  enter your passcode" },
+            { "3", "Settings  →  General  →  About  →  Certificate Trust Settings" },
+            { "4", "Toggle  WebShare  on  →  Done — no warning will appear again on this device" },
+        }, null);
+
+        // Mac panel
+        osPanels[3] = makeOsPanel(T, new String[][]{
+            { "1", "Open the browser login page and click  Download Certificate (.pem)" },
+            { "2", "Double-click the  .pem  file — Keychain Access opens automatically" },
+            { "3", "Add to the  System  keychain" },
+            { "4", "Find  WebShare  in the list → double-click → expand  Trust  → set  Always Trust" },
+            { "5", "Enter your Mac password → Restart browser — no warning will appear again on this device" },
+        }, null);
+
+        HBox tabBar = new HBox(4);
+        tabBar.getChildren().addAll(osBtns);
+
+        StackPane tabContent = new StackPane();
+        for (VBox p : osPanels) {
+            p.setVisible(false);
+            p.setManaged(false);
+            tabContent.getChildren().add(p);
+        }
+
+        updateOsTabs(osBtns, osPanels, 0, T); // show Windows by default
+
+        permSection.getChildren().addAll(tabBar, tabContent);
+
+        // ── Scroll container ──────────────────────────────────────────────
+        VBox allSections = new VBox(14, whySection, bypassSection, permSection);
+        allSections.setPadding(new Insets(0, 2, 4, 2));
+
+        ScrollPane scroll = new ScrollPane(allSections);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setStyle("-fx-background-color:transparent;-fx-background:transparent;" +
+            "-fx-border-color:transparent;");
+        scroll.setPrefHeight(460);
+
+        // ── Root layout ───────────────────────────────────────────────────
+        VBox rootBox = new VBox(16, header, scroll);
+        rootBox.setPadding(new Insets(24));
+        rootBox.setPrefWidth(580);
+        rootBox.setStyle(
+            "-fx-background-color:" + T.surface + ";" +
+            "-fx-border-color:" + T.border + ";" +
+            "-fx-border-radius:16;-fx-background-radius:16;-fx-border-width:1;");
+
+        Scene dlgScene = new Scene(rootBox);
+        dlgScene.setFill(Color.web(T.bg));
+        dlg.setScene(dlgScene);
+        dlg.showAndWait();
+    }
+
+    /**
+     * Creates a styled section card with a coloured title and optional body text.
+     * Extra content (e.g. rows, tabs) can be added to the returned VBox after the call.
+     */
+    private VBox makeHelpSection(String title, String accentColor, String bodyText) {
+        Label titleLbl = new Label(title);
+        titleLbl.setStyle(sans(F_LABEL, accentColor) + "-fx-font-weight:600;");
+        titleLbl.setWrapText(true);
+
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(14, 16, 14, 16));
+        box.setStyle(
+            "-fx-background-color:" + T.surface2 + ";" +
+            "-fx-border-color:" + T.border + ";" +
+            "-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
+        box.getChildren().add(titleLbl);
+
+        if (bodyText != null) {
+            Label body = new Label(bodyText);
+            body.setStyle(sans(F_SMALL, T.muted));
+            body.setWrapText(true);
+            box.getChildren().add(body);
+        }
+        return box;
+    }
+
+    /**
+     * Builds the step list for one OS panel.
+     * Steps with index "!" are rendered as amber warning rows.
+     */
+    private VBox makeOsPanel(Theme t, String[][] steps, String note) {
+        VBox panel = new VBox(4);
+        panel.setPadding(new Insets(10, 0, 4, 0));
+
+        for (String[] step : steps) {
+            boolean isWarn = step[0].equals("!");
+            HBox row = new HBox(10);
+            row.setAlignment(Pos.TOP_LEFT);
+            row.setPadding(new Insets(6, 10, 6, 10));
+            row.setStyle("-fx-background-color:" + (isWarn ? "rgba(245,158,11,0.07)" : t.bg) +
+                ";-fx-background-radius:6;" +
+                (isWarn ? "-fx-border-color:rgba(245,158,11,0.2);-fx-border-radius:6;-fx-border-width:1;" : ""));
+
+            Label num = new Label(step[0]);
+            num.setStyle(mono(F_SMALL, isWarn ? "#f59e0b" : t.accent) + "-fx-font-weight:bold;");
+            num.setMinWidth(20);
+
+            Label txt = new Label(step[1]);
+            txt.setStyle(sans(F_SMALL, isWarn ? "#a07030" : t.muted));
+            txt.setWrapText(true);
+            HBox.setHgrow(txt, Priority.ALWAYS);
+
+            row.getChildren().addAll(num, txt);
+            panel.getChildren().add(row);
+        }
+
+        if (note != null) {
+            Label noteLbl = new Label(note);
+            noteLbl.setStyle(sans(11, T.muted));
+            noteLbl.setWrapText(true);
+            noteLbl.setPadding(new Insets(6, 0, 0, 0));
+            panel.getChildren().add(noteLbl);
+        }
+        return panel;
+    }
+
+    /** Updates OS tab button styles and shows the selected panel. */
+    private void updateOsTabs(Button[] btns, VBox[] panels, int selectedIdx, Theme t) {
+        for (int i = 0; i < btns.length; i++) {
+            boolean active = (i == selectedIdx);
+            btns[i].setStyle(
+                mono(F_SMALL, active ? t.accent : t.muted) +
+                "-fx-background-color:" + (active ? "rgba(78,255,176,0.1)" : t.surface2) + ";" +
+                "-fx-border-color:" + (active ? t.accent : t.border) + ";" +
+                "-fx-border-radius:8;-fx-background-radius:8;-fx-border-width:1;" +
+                "-fx-padding:6 12 6 12;-fx-cursor:hand;");
+            panels[i].setVisible(active);
+            panels[i].setManaged(active);
+        }
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // Theme
@@ -205,22 +480,23 @@ public class WebShareApplication extends Application {
         headerShare.setStyle(mono(F_LOGO, T.accent) + "-fx-font-weight:bold;");
         headerBadge.setStyle(mono(F_SMALL, T.muted) + "-fx-background-color:" + T.surface2 +
             ";-fx-border-color:" + T.border + ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:4 12 4 12;");
-        styleThemeBtn(); stylePowerBtn(); styleUploadToggle(); styleExecToggle(); styleActionBtns();
+        styleThemeBtn(); styleHelpBtn(); stylePowerBtn();
+        styleUploadToggle(); styleExecToggle(); styleActionBtns();
         stylePanel(leftPanel); stylePanel(rightPanel);
-        if (statusRowNode != null) statusRowNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-background-radius:10;");
-        if (urlRowNode != null)    urlRowNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
-        if (qrAreaNode != null)    qrAreaNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-width:1;-fx-border-style:dashed;-fx-border-radius:10;-fx-background-radius:10;");
+        if (statusRowNode  != null) statusRowNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-background-radius:10;");
+        if (urlRowNode     != null) urlRowNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
+        if (qrAreaNode     != null) qrAreaNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-width:1;-fx-border-style:dashed;-fx-border-radius:10;-fx-background-radius:10;");
         if (uploadZoneNode != null) uploadZoneNode.setStyle("-fx-border-color:" + T.border + ";-fx-border-radius:10;-fx-border-width:1.5;-fx-border-style:dashed;-fx-cursor:hand;");
         fileList.setStyle(fileListCss()); fileList.refresh();
-        if (countBadge != null)    countBadge.setStyle(sans(F_SMALL, T.muted) + "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:4 12 4 12;");
+        if (countBadge    != null) countBadge.setStyle(sans(F_SMALL, T.muted) + "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:4 12 4 12;");
         if (uploadMainLbl != null) uploadMainLbl.setStyle(sans(F_LABEL, T.text) + "-fx-font-weight:500;");
-        if (uploadSubLbl != null)  uploadSubLbl.setStyle(sans(F_SMALL, T.muted));
+        if (uploadSubLbl  != null) uploadSubLbl.setStyle(sans(F_SMALL, T.muted));
         if (folderIconCanvas != null) drawFolderIcon(folderIconCanvas);
-        urlVal.setStyle(mono(F_MONO, T.accent3));
+        urlVal.setStyle(urlLabelStyle());
         qrTitle.setStyle(sans(F_LABEL, T.text) + "-fx-font-weight:bold;");
         qrSub.setStyle(sans(F_SMALL, T.muted));
         statusTxt.setStyle(sans(F_LABEL, powerOn ? T.accent : T.text));
-        if (keyBox != null)   keyBox.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
+        if (keyBox   != null) keyBox.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border + ";-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
         if (keyLabel != null) keyLabel.setStyle(mono(F_KEY, T.accent) + "-fx-font-weight:bold;");
     }
 
@@ -256,18 +532,33 @@ public class WebShareApplication extends Application {
             "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border +
             ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:4 12 4 12;");
 
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        // Help button — "?" — opens the help panel
+        helpBtn = new Button("?  Help");
+        styleHelpBtn();
+        helpBtn.setOnAction(_ -> showHelpPanel());
+
         themeBtn = new Button(isDark ? "☀  Light" : "☾  Dark");
         styleThemeBtn();
         themeBtn.setOnAction(_ -> toggleTheme());
 
-        Region sp = new Region();
-        HBox.setHgrow(sp, Priority.ALWAYS);
-        HBox row = new HBox(10, icon, headerWeb, headerShare, headerBadge, sp, themeBtn);
+        HBox row = new HBox(8, icon, headerWeb, headerShare, headerBadge, sp, helpBtn, themeBtn);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }
 
+    private void styleHelpBtn() {
+        if (helpBtn == null) return;
+        helpBtn.setStyle(sans(F_SMALL, T.accent3) +
+            "-fx-background-color:rgba(77,159,255,0.08);" +
+            "-fx-border-color:rgba(77,159,255,0.3);" +
+            ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:6 14 6 14;-fx-cursor:hand;");
+    }
+
     private void styleThemeBtn() {
+        if (themeBtn == null) return;
         themeBtn.setStyle(sans(F_SMALL, T.muted) +
             "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border +
             ";-fx-background-radius:20;-fx-border-radius:20;-fx-padding:6 16 6 16;-fx-cursor:hand;");
@@ -279,32 +570,24 @@ public class WebShareApplication extends Application {
         powerLbl.setStyle(sans(F_SMALL, T.muted));
         HBox powerContent = new HBox(8, powerDot, powerLbl);
         powerContent.setAlignment(Pos.CENTER);
-
         powerBtn = new Button();
         powerBtn.setGraphic(powerContent);
         powerBtn.setPrefHeight(38);
         stylePowerBtn();
         powerBtn.setOnAction(_ -> togglePower());
 
-        Label uploadLbl = new Label("UPLOADS");
-        uploadLbl.setStyle(sans(F_SMALL, T.muted));
-
-        javafx.scene.shape.Rectangle track = new javafx.scene.shape.Rectangle(40, 20);
-        track.setArcWidth(20); track.setArcHeight(20);
-        track.setFill(Color.web(T.border));
-
+        uploadToggleLbl = new Label("UPLOADS");
+        uploadToggleLbl.setStyle(sans(F_SMALL, T.muted));
+        toggleTrackRect = new javafx.scene.shape.Rectangle(40, 20);
+        toggleTrackRect.setArcWidth(20); toggleTrackRect.setArcHeight(20);
+        toggleTrackRect.setFill(Color.web(T.border));
         toggleThumb = new javafx.scene.shape.Rectangle(16, 16);
         toggleThumb.setArcWidth(16); toggleThumb.setArcHeight(16);
-        toggleThumb.setFill(Color.WHITE);
-        toggleThumb.setTranslateX(-10);
-
-        toggleTrack = new StackPane(track, toggleThumb);
-        toggleTrack.setPrefSize(40, 20);
-        toggleTrack.setMaxSize(40, 20);
-
-        HBox uploadContent = new HBox(8, uploadLbl, toggleTrack);
+        toggleThumb.setFill(Color.WHITE); toggleThumb.setTranslateX(-10);
+        toggleTrack = new StackPane(toggleTrackRect, toggleThumb);
+        toggleTrack.setPrefSize(40, 20); toggleTrack.setMaxSize(40, 20);
+        HBox uploadContent = new HBox(8, uploadToggleLbl, toggleTrack);
         uploadContent.setAlignment(Pos.CENTER);
-
         uploadToggleBtn = new Button();
         uploadToggleBtn.setGraphic(uploadContent);
         uploadToggleBtn.setPrefHeight(38);
@@ -312,26 +595,18 @@ public class WebShareApplication extends Application {
         styleUploadToggle();
         uploadToggleBtn.setOnAction(_ -> toggleUpload());
 
-        // ── Exec files toggle ─────────────────────────────────────────────
-        Label execLbl = new Label("EXEC FILES");
-        execLbl.setStyle(sans(F_SMALL, T.muted));
-
-        javafx.scene.shape.Rectangle execTrack = new javafx.scene.shape.Rectangle(40, 20);
-        execTrack.setArcWidth(20); execTrack.setArcHeight(20);
-        execTrack.setFill(Color.web(T.border));
-
+        execToggleLbl = new Label("EXEC FILES");
+        execToggleLbl.setStyle(sans(F_SMALL, T.muted));
+        execToggleTrackRect = new javafx.scene.shape.Rectangle(40, 20);
+        execToggleTrackRect.setArcWidth(20); execToggleTrackRect.setArcHeight(20);
+        execToggleTrackRect.setFill(Color.web(T.border));
         execToggleThumb = new javafx.scene.shape.Rectangle(16, 16);
         execToggleThumb.setArcWidth(16); execToggleThumb.setArcHeight(16);
-        execToggleThumb.setFill(Color.WHITE);
-        execToggleThumb.setTranslateX(-10);
-
-        execToggleTrack = new StackPane(execTrack, execToggleThumb);
-        execToggleTrack.setPrefSize(40, 20);
-        execToggleTrack.setMaxSize(40, 20);
-
-        HBox execContent = new HBox(8, execLbl, execToggleTrack);
+        execToggleThumb.setFill(Color.WHITE); execToggleThumb.setTranslateX(-10);
+        execToggleTrack = new StackPane(execToggleTrackRect, execToggleThumb);
+        execToggleTrack.setPrefSize(40, 20); execToggleTrack.setMaxSize(40, 20);
+        HBox execContent = new HBox(8, execToggleLbl, execToggleTrack);
         execContent.setAlignment(Pos.CENTER);
-
         execToggleBtn = new Button();
         execToggleBtn.setGraphic(execContent);
         execToggleBtn.setPrefHeight(38);
@@ -351,7 +626,7 @@ public class WebShareApplication extends Application {
             ";-fx-background-radius:20;-fx-border-radius:20;-fx-border-width:1;" +
             "-fx-padding:6 16 6 16;-fx-cursor:hand;");
         if (powerDot != null) {
-            powerDot.setFill(powerOn ? Color.web("#4fffb0") : Color.web("#e03e3e"));
+            powerDot.setFill(powerOn ? Color.web("#e03e3e") : Color.web("#4fffb0"));
             powerDot.setEffect(powerOn ? new Glow(0.8) : null);
         }
         HBox content = (HBox) powerBtn.getGraphic();
@@ -391,15 +666,14 @@ public class WebShareApplication extends Application {
         Label uLbl = new Label("SERVER URL");
         uLbl.setStyle(mono(F_SMALL, T.muted) + "-fx-font-weight:bold;");
         urlVal = new Label("—");
-        urlVal.setStyle(mono(F_MONO, T.accent3));
+        urlVal.setStyle(urlLabelStyle());
         urlVal.setWrapText(true);
         urlVal.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(urlVal, Priority.ALWAYS);
 
         Button copyBtn = new Button("⎘");
         copyBtn.setStyle(mono(F_SMALL, T.muted) +
-            "-fx-background-color:transparent;-fx-border-color:transparent;" +
-            "-fx-cursor:hand;-fx-padding:2 6 2 6;");
+            "-fx-background-color:transparent;-fx-border-color:transparent;-fx-cursor:hand;-fx-padding:2 6 2 6;");
         copyBtn.setTooltip(new Tooltip("Copy URL"));
         copyBtn.setOnMouseEntered(_ -> copyBtn.setStyle(mono(F_SMALL, T.accent) +
             "-fx-background-color:transparent;-fx-border-color:transparent;-fx-cursor:hand;-fx-padding:2 6 2 6;"));
@@ -410,16 +684,15 @@ public class WebShareApplication extends Application {
             if (url != null && !url.equals("—") && !url.isEmpty()) {
                 javafx.scene.input.Clipboard cb = javafx.scene.input.Clipboard.getSystemClipboard();
                 javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
-                cc.putString(url);
-                cb.setContent(cc);
+                cc.putString(url); cb.setContent(cc);
                 copyBtn.setText("✓");
                 new Timeline(new KeyFrame(Duration.seconds(2), _ -> copyBtn.setText("⎘"))).play();
             }
         });
 
-        HBox urlBottom = new HBox(4, urlVal, copyBtn);
-        urlBottom.setAlignment(Pos.CENTER_LEFT);
-        urlRowNode = new VBox(4, uLbl, urlBottom);
+        HBox urlRow = new HBox(4, urlVal, copyBtn);
+        urlRow.setAlignment(Pos.TOP_LEFT);
+        urlRowNode = new VBox(4, uLbl, urlRow);
         urlRowNode.setPadding(new Insets(10, 14, 10, 14));
         urlRowNode.setStyle("-fx-background-color:" + T.surface2 + ";-fx-border-color:" + T.border +
             ";-fx-border-radius:10;-fx-background-radius:10;-fx-border-width:1;");
@@ -443,9 +716,7 @@ public class WebShareApplication extends Application {
         qrCanvas   = new Canvas(150, 150);
         qrCanvas.setVisible(false);
         qrBox = new StackPane(qrEmptyBox, qrCanvas);
-        qrBox.setPrefSize(154, 154);
-        qrBox.setMinSize(154, 154);
-        qrBox.setMaxSize(154, 154);
+        qrBox.setPrefSize(154, 154); qrBox.setMinSize(154, 154); qrBox.setMaxSize(154, 154);
         qrBox.setPadding(new Insets(2));
         qrBox.setStyle("-fx-background-color:white;-fx-background-radius:10;");
 
@@ -454,13 +725,10 @@ public class WebShareApplication extends Application {
         qrSub.setMaxWidth(Double.MAX_VALUE);
         qrSub.setAlignment(Pos.CENTER);
 
-        qrPill = new Label("");
-        qrPill.setVisible(false);
-        qrPill.setManaged(false);
+        qrPill = new Label(""); qrPill.setVisible(false); qrPill.setManaged(false);
 
         HBox qrBoxWrap = new HBox(qrBox);
         qrBoxWrap.setAlignment(Pos.CENTER);
-
         VBox qrVBox = new VBox(8, qrTitle, qrBoxWrap, qrSub);
         qrVBox.setAlignment(Pos.CENTER);
         qrVBox.setMaxWidth(Double.MAX_VALUE);
@@ -476,6 +744,10 @@ public class WebShareApplication extends Application {
 
         panel.getChildren().addAll(statusRowNode, urlRowNode, keyBox, qrAreaNode);
         return panel;
+    }
+
+    private String urlLabelStyle() {
+        return mono(F_MONO, T.accent3) + "-fx-font-weight:bold;";
     }
 
     private VBox buildQrEmpty() {
@@ -532,15 +804,13 @@ public class WebShareApplication extends Application {
 
         removeBtn = actionBtn("Remove Selected");
         clearBtn  = actionBtn("Clear All");
-
-        // ── Confirm before destructive actions ─────────────────────────────
         removeBtn.setOnAction(_ -> confirmThenRun(
             "Remove selected files?", "This cannot be undone.", this::removeSelected));
         clearBtn.setOnAction(_ -> confirmThenRun(
             "Clear all files?", "This will delete everything in the share folder.", this::clearAll));
 
         HBox.setHgrow(removeBtn, Priority.ALWAYS);
-        HBox.setHgrow(clearBtn, Priority.ALWAYS);
+        HBox.setHgrow(clearBtn,  Priority.ALWAYS);
         removeBtn.setMaxWidth(Double.MAX_VALUE);
         clearBtn.setMaxWidth(Double.MAX_VALUE);
         HBox acts = new HBox(10, removeBtn, clearBtn);
@@ -556,19 +826,16 @@ public class WebShareApplication extends Application {
 
     private ListCell<String> buildCell() {
         return new ListCell<String>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
+            @Override protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null); setGraphic(null);
-                    setStyle("-fx-background-color:transparent;");
-                    return;
+                    setStyle("-fx-background-color:transparent;"); return;
                 }
-                // Split on LAST " (" to handle filenames like "file (1).zip (2.3 MB)"
-                int      lastParen = item.lastIndexOf(" (");
-                String   fname = lastParen >= 0 ? item.substring(0, lastParen).trim() : item.trim();
-                String   size  = lastParen >= 0 ? item.substring(lastParen + 2).replace(")", "") : "";
-                String   ext   = fname.contains(".")
+                int    lp    = item.lastIndexOf(" (");
+                String fname = lp >= 0 ? item.substring(0, lp).trim() : item.trim();
+                String size  = lp >= 0 ? item.substring(lp + 2).replace(")", "") : "";
+                String ext   = fname.contains(".")
                     ? fname.substring(fname.lastIndexOf('.') + 1).toUpperCase() : "FILE";
                 if (ext.length() > 5) ext = ext.substring(0, 5);
 
@@ -576,31 +843,25 @@ public class WebShareApplication extends Application {
                 eb.setStyle(mono(F_SMALL, T.accent) +
                     "-fx-background-color:rgba(78,255,176,0.12);-fx-background-radius:5;" +
                     "-fx-padding:3 8 3 8;-fx-min-width:40;-fx-alignment:center;");
-
                 Label nl = new Label(fname);
                 nl.setStyle(sans(F_LABEL, T.text));
-                nl.setMaxWidth(Double.MAX_VALUE);
-                nl.setEllipsisString("…");
+                nl.setMaxWidth(Double.MAX_VALUE); nl.setEllipsisString("…");
                 HBox.setHgrow(nl, Priority.ALWAYS);
-
                 Label sl = new Label(size);
                 sl.setStyle(mono(F_SMALL, T.muted));
 
                 String fn = fname;
-
-                // Per-row delete with confirmation
                 Button del = new Button("✕");
                 del.setStyle("-fx-background-color:transparent;-fx-border-color:transparent;" +
-                    "-fx-text-fill:" + T.muted + ";-fx-font-size:13px;-fx-cursor:hand;-fx-padding:0 4 0 4;-fx-min-width:22;");
-                del.setOnAction(_ -> confirmThenRun(
-                    "Delete " + fn + "?", "This cannot be undone.",
+                    "-fx-text-fill:" + T.muted + ";-fx-font-size:13px;" +
+                    "-fx-cursor:hand;-fx-padding:0 4 0 4;-fx-min-width:22;");
+                del.setOnAction(_ -> confirmThenRun("Delete " + fn + "?", "This cannot be undone.",
                     () -> { new File(uploadFolder, fn).delete(); refreshList(); broadcast(); }));
 
                 HBox row = new HBox(10, eb, nl, sl, del);
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.setPadding(new Insets(5, 10, 5, 10));
-                setGraphic(row);
-                setText(null);
+                setGraphic(row); setText(null);
                 setStyle(isSelected()
                     ? "-fx-background-color:rgba(77,159,255,0.12);"
                     : "-fx-background-color:transparent;");
@@ -609,9 +870,7 @@ public class WebShareApplication extends Application {
     }
 
     private Canvas buildFolderIcon() {
-        Canvas c = new Canvas(32, 28);
-        drawFolderIcon(c);
-        return c;
+        Canvas c = new Canvas(32, 28); drawFolderIcon(c); return c;
     }
 
     private void drawFolderIcon(Canvas c) {
@@ -652,22 +911,15 @@ public class WebShareApplication extends Application {
     }
 
     private String actionHoverStyle() {
-        return sans(F_SMALL, T.accent2) + "-fx-font-weight:600;-fx-background-color:rgba(255,107,107,0.07);" +
+        return sans(F_SMALL, T.accent2) + "-fx-font-weight:600;" +
+            "-fx-background-color:rgba(255,107,107,0.07);" +
             "-fx-border-color:" + T.accent2 + ";-fx-border-radius:8;-fx-background-radius:8;" +
             "-fx-border-width:1;-fx-padding:10 20 10 20;-fx-cursor:hand;";
     }
 
     private void styleActionBtns() {
-        if (removeBtn != null) {
-            removeBtn.setStyle(actionBaseStyle());
-            removeBtn.setOnMouseEntered(_ -> removeBtn.setStyle(actionHoverStyle()));
-            removeBtn.setOnMouseExited(_  -> removeBtn.setStyle(actionBaseStyle()));
-        }
-        if (clearBtn != null) {
-            clearBtn.setStyle(actionBaseStyle());
-            clearBtn.setOnMouseEntered(_ -> clearBtn.setStyle(actionHoverStyle()));
-            clearBtn.setOnMouseExited(_  -> clearBtn.setStyle(actionBaseStyle()));
-        }
+        if (removeBtn != null) { removeBtn.setStyle(actionBaseStyle()); removeBtn.setOnMouseEntered(_ -> removeBtn.setStyle(actionHoverStyle())); removeBtn.setOnMouseExited(_ -> removeBtn.setStyle(actionBaseStyle())); }
+        if (clearBtn  != null) { clearBtn.setStyle(actionBaseStyle());  clearBtn.setOnMouseEntered(_ -> clearBtn.setStyle(actionHoverStyle()));  clearBtn.setOnMouseExited(_ -> clearBtn.setStyle(actionBaseStyle())); }
     }
 
     private String mono(int s, String c) { return "-fx-font-family:'Courier New';-fx-font-size:" + s + "px;-fx-text-fill:" + c + ";"; }
@@ -686,7 +938,6 @@ public class WebShareApplication extends Application {
     }
 
     private void togglePower() {
-        // Disable button during transition to prevent double-click race
         powerBtn.setDisable(true);
         powerOn = !powerOn;
 
@@ -702,11 +953,8 @@ public class WebShareApplication extends Application {
             uploadToggleBtn.setDisable(false);
             execToggleBtn.setDisable(false);
             pulse.play();
-            // Start server on background thread — never block the UI thread
             Thread t = new Thread(this::startServer);
-            t.setDaemon(true);
-            t.setName("server-start");
-            t.start();
+            t.setDaemon(true); t.setName("server-start"); t.start();
         } else {
             stylePowerBtn();
             statusDot.setFill(Color.web("#e03e3e"));
@@ -720,101 +968,85 @@ public class WebShareApplication extends Application {
             serverUrl = ""; uploadEnabled = false; execEnabled = false;
             styleUploadToggle(); styleExecToggle();
             keyLabel.setText("——————");
-            urlVal.setText("—");
-            qrCanvas.setVisible(false);
-            qrEmptyBox.setVisible(true);
+            urlVal.setText("—"); urlVal.setStyle(urlLabelStyle());
+            qrCanvas.setVisible(false); qrEmptyBox.setVisible(true);
             qrTitle.setText("Waiting for server");
             qrSub.setText("Enter access key in browser");
-            deleteAll(); refreshList();
+            refreshList();
             powerBtn.setDisable(false);
         }
     }
 
     private void startServer() {
-        try {
-            Utility.ensureJksExists();
-            int port = Utility.selectPort();
-            if (port == -1) {
+    try {
+        sessionManager = new SessionManager();
+
+        File jksFile = new File(Utility.getJksPath());
+        if (!jksFile.exists() || jksFile.length() == 0) {
+            Platform.runLater(() -> statusTxt.setText("Generating certificate…"));
+            Utility.CertSetupResult certResult = Utility.ensureJksExists();
+            if (certResult == Utility.CertSetupResult.FAILED) {
                 Platform.runLater(() -> {
-                    statusTxt.setText("✗ No free port found");
-                    powerOn = false;
-                    stylePowerBtn();
-                    powerBtn.setDisable(false);
+                    statusTxt.setText("✗ Certificate generation failed");
+                    powerOn = false; stylePowerBtn(); powerBtn.setDisable(false);
                 });
                 return;
             }
-            sessionManager = new SessionManager();
-            server = new WebShareServer(port, uploadFolder, sessionManager);
-            String res = server.startServer();
-
-            // Detect failure from startServer()
-            if (res.startsWith("Failed")) {
-                Platform.runLater(() -> {
-                    statusTxt.setText("✗ Server failed to start");
-                    powerOn = false;
-                    stylePowerBtn();
-                    powerBtn.setDisable(false);
-                });
-                return;
-            }
-
-            // Parse URL — take last non-empty line
-            String url = Arrays.stream(res.split("\n"))
-                .map(String::trim)
-                .filter(l -> !l.isEmpty())
-                .reduce((_, b) -> b)
-                .orElse(res)
-                .replace("Network: ", "")
-                .trim();
-            serverUrl = url;
-
-            Platform.runLater(() -> {
-                urlVal.setText(serverUrl);
-                keyLabel.setText(sessionManager.getAccessKey());
-                statusTxt.setText("Online — ready to share");
-                qrTitle.setText("Scan to access");
-                qrSub.setText("Key: " + sessionManager.getAccessKey());
-                generateQR(serverUrl);
-                updateStats();
-                startFolderWatcher();
-                powerBtn.setDisable(false);
-            });
-
-        } catch (Exception ex) {
-            AppLogger.error("Server start failed", ex);
-            Platform.runLater(() -> {
-                statusTxt.setText("✗ " + ex.getMessage());
-                powerOn = false;
-                stylePowerBtn();
-                powerBtn.setDisable(false);
-            });
         }
+
+        server = new WebShareServer(uploadFolder, sessionManager);
+        String result = server.startServer();
+
+        if (result.startsWith("Failed")) {
+            Platform.runLater(() -> {
+                statusTxt.setText("✗ " + result);
+                powerOn = false; stylePowerBtn(); powerBtn.setDisable(false);
+            });
+            return;
+        }
+
+        serverUrl = result.trim();
+
+        Platform.runLater(() -> {
+            urlVal.setText(serverUrl);
+            urlVal.setStyle(urlLabelStyle());
+            keyLabel.setText(sessionManager.getAccessKey());
+            statusTxt.setText("Online — ready to share");
+            qrTitle.setText("Scan to connect");
+            qrSub.setText("Key: " + sessionManager.getAccessKey());
+            generateQR(serverUrl);
+            refreshList();
+            startFolderWatcher();
+            powerBtn.setDisable(false);
+        });
+
+    } catch (Exception ex) {
+        AppLogger.error("Server start failed", ex);
+        Platform.runLater(() -> {
+            statusTxt.setText("✗ " + ex.getMessage());
+            powerOn = false; stylePowerBtn(); powerBtn.setDisable(false);
+        });
     }
+}
 
     private void generateQR(String url) {
-        Platform.runLater(() -> {
-            GraphicsContext gc = qrCanvas.getGraphicsContext2D();
-            int sz = 150;
-            gc.setFill(Color.WHITE);
-            gc.fillRoundRect(0, 0, sz, sz, 8, 8);
-            try {
-                Hashtable<EncodeHintType, ErrorCorrectionLevel> h = new Hashtable<>();
-                h.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
-                BitMatrix m = new QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, sz, sz, h);
-                int    w    = m.getWidth();
-                double cell = (double) sz / w;
-                for (int i = 0; i < w; i++)
-                    for (int j = 0; j < w; j++) {
-                        gc.setFill(m.get(i, j) ? Color.BLACK : Color.WHITE);
-                        gc.fillRect(i * cell, j * cell, cell, cell);
-                    }
-                qrEmptyBox.setVisible(false);
-                qrCanvas.setVisible(true);
-            } catch (WriterException ex) {
-                gc.setFill(Color.RED);
-                gc.fillText("QR Error", 10, 80);
-            }
-        });
+        GraphicsContext gc = qrCanvas.getGraphicsContext2D();
+        int sz = 150;
+        gc.setFill(Color.WHITE); gc.fillRoundRect(0, 0, sz, sz, 8, 8);
+        try {
+            Hashtable<EncodeHintType, ErrorCorrectionLevel> h = new Hashtable<>();
+            h.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);
+            BitMatrix m = new QRCodeWriter().encode(url, BarcodeFormat.QR_CODE, sz, sz, h);
+            int w = m.getWidth(); double cell = (double) sz / w;
+            for (int i = 0; i < w; i++)
+                for (int j = 0; j < w; j++) {
+                    gc.setFill(m.get(i, j) ? Color.BLACK : Color.WHITE);
+                    gc.fillRect(i * cell, j * cell, cell, cell);
+                }
+            qrEmptyBox.setVisible(false); qrCanvas.setVisible(true);
+        } catch (WriterException ex) {
+            gc.setFill(Color.RED); gc.fillText("QR Error", 10, 80);
+        }
     }
 
     private void toggleUpload() {
@@ -828,50 +1060,27 @@ public class WebShareApplication extends Application {
         if (uploadToggleBtn == null) return;
         uploadToggleBtn.setStyle(sans(F_SMALL, uploadEnabled ? T.accent : T.muted) +
             "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + (uploadEnabled ? T.accent : T.border) +
-            ";-fx-background-radius:20;-fx-border-radius:20;-fx-border-width:1;" +
-            "-fx-padding:6 16 6 16;-fx-cursor:hand;");
-
-        HBox content = (HBox) uploadToggleBtn.getGraphic();
-        if (content != null) {
-            Label lbl = (Label) content.getChildren().get(0);
-            lbl.setStyle(sans(F_SMALL, uploadEnabled ? T.accent : T.muted));
-            if (toggleTrack != null) {
-                javafx.scene.shape.Rectangle track =
-                    (javafx.scene.shape.Rectangle) toggleTrack.getChildren().get(0);
-                track.setFill(uploadEnabled ? Color.web(T.accent) : Color.web(T.border));
-                if (toggleThumb != null)
-                    toggleThumb.setTranslateX(uploadEnabled ? 10 : -10);
-            }
-        }
+            ";-fx-background-radius:20;-fx-border-radius:20;-fx-border-width:1;-fx-padding:6 16 6 16;-fx-cursor:hand;");
+        if (uploadToggleLbl  != null) uploadToggleLbl.setStyle(sans(F_SMALL, uploadEnabled ? T.accent : T.muted));
+        if (toggleTrackRect  != null) toggleTrackRect.setFill(uploadEnabled ? Color.web(T.accent) : Color.web(T.border));
+        if (toggleThumb      != null) toggleThumb.setTranslateX(uploadEnabled ? 10 : -10);
     }
 
     private void toggleExec() {
         if (!powerOn) return;
         execEnabled = !execEnabled;
         if (sessionManager != null) sessionManager.setExecAllowed(execEnabled);
-        styleExecToggle();
-        broadcast();
+        styleExecToggle(); broadcast();
     }
 
     private void styleExecToggle() {
         if (execToggleBtn == null) return;
         execToggleBtn.setStyle(sans(F_SMALL, execEnabled ? T.accent2 : T.muted) +
             "-fx-background-color:" + T.surface2 + ";-fx-border-color:" + (execEnabled ? T.accent2 : T.border) +
-            ";-fx-background-radius:20;-fx-border-radius:20;-fx-border-width:1;" +
-            "-fx-padding:6 16 6 16;-fx-cursor:hand;");
-
-        HBox content = (HBox) execToggleBtn.getGraphic();
-        if (content != null) {
-            Label lbl = (Label) content.getChildren().get(0);
-            lbl.setStyle(sans(F_SMALL, execEnabled ? T.accent2 : T.muted));
-            if (execToggleTrack != null) {
-                javafx.scene.shape.Rectangle track =
-                    (javafx.scene.shape.Rectangle) execToggleTrack.getChildren().get(0);
-                track.setFill(execEnabled ? Color.web(T.accent2) : Color.web(T.border));
-                if (execToggleThumb != null)
-                    execToggleThumb.setTranslateX(execEnabled ? 10 : -10);
-            }
-        }
+            ";-fx-background-radius:20;-fx-border-radius:20;-fx-border-width:1;-fx-padding:6 16 6 16;-fx-cursor:hand;");
+        if (execToggleLbl       != null) execToggleLbl.setStyle(sans(F_SMALL, execEnabled ? T.accent2 : T.muted));
+        if (execToggleTrackRect != null) execToggleTrackRect.setFill(execEnabled ? Color.web(T.accent2) : Color.web(T.border));
+        if (execToggleThumb     != null) execToggleThumb.setTranslateX(execEnabled ? 10 : -10);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -879,24 +1088,21 @@ public class WebShareApplication extends Application {
     // ══════════════════════════════════════════════════════════════════════
 
     private void startFolderWatcher() {
-        if (watcherThread != null && watcherThread.isAlive())
-            watcherThread.interrupt();
+        if (watcherThread != null && watcherThread.isAlive()) watcherThread.interrupt();
+        if (!uploadFolder.exists()) uploadFolder.mkdirs();
 
         watcherThread = new Thread(() -> {
-            try {
-                WatchService ws  = FileSystems.getDefault().newWatchService();
-                Path         dir = uploadFolder.toPath();
+            try (WatchService ws = FileSystems.getDefault().newWatchService()) {
+                Path dir = uploadFolder.toPath();
                 dir.register(ws,
                     StandardWatchEventKinds.ENTRY_CREATE,
                     StandardWatchEventKinds.ENTRY_DELETE,
                     StandardWatchEventKinds.ENTRY_MODIFY);
                 while (!Thread.currentThread().isInterrupted()) {
                     WatchKey k = ws.take();
-                    k.pollEvents();
-                    k.reset();
+                    k.pollEvents(); k.reset();
                     Platform.runLater(this::refreshList);
                 }
-                ws.close();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
@@ -916,96 +1122,68 @@ public class WebShareApplication extends Application {
         FileChooser fc = new FileChooser();
         fc.setTitle("Select Files to Share");
         fc.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("All Files",  "*.*"),
-            new FileChooser.ExtensionFilter("Images",     "*.png", "*.jpg", "*.jpeg", "*.gif"),
-            new FileChooser.ExtensionFilter("Documents",  "*.pdf", "*.doc", "*.docx", "*.txt"));
+            new FileChooser.ExtensionFilter("All Files", "*.*"),
+            new FileChooser.ExtensionFilter("Images",    "*.png", "*.jpg", "*.jpeg", "*.gif"),
+            new FileChooser.ExtensionFilter("Documents", "*.pdf", "*.doc", "*.docx", "*.txt"));
         List<File> chosen = fc.showOpenMultipleDialog(primaryStage);
         if (chosen == null || chosen.isEmpty()) return;
-
         int copied = 0;
         for (File f : chosen) {
             try {
                 File dest = new File(uploadFolder, f.getName());
-                // Verify destination is inside share folder
                 if (!dest.getCanonicalPath().startsWith(uploadFolder.getCanonicalPath())) {
-                    AppLogger.info("Blocked path traversal on upload: " + f.getName());
-                    continue;
+                    AppLogger.info("Blocked path traversal: " + f.getName()); continue;
                 }
                 Files.copy(f.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 copied++;
-            } catch (IOException ex) {
-                AppLogger.error("Upload failed: " + f.getName(), ex);
-            }
+            } catch (IOException ex) { AppLogger.error("Upload failed: " + f.getName(), ex); }
         }
         if (copied > 0) { refreshList(); broadcast(); }
     }
 
     private void removeSelected() {
         for (String i : new ArrayList<>(fileList.getSelectionModel().getSelectedItems())) {
-            int lastP = i.lastIndexOf(" (");
-            String fname = lastP >= 0 ? i.substring(0, lastP).trim() : i.trim();
+            int lp = i.lastIndexOf(" (");
+            String fname = lp >= 0 ? i.substring(0, lp).trim() : i.trim();
             new File(uploadFolder, fname).delete();
         }
-        refreshList();
-        broadcast();
+        refreshList(); broadcast();
     }
 
-    private void clearAll() { deleteAll(); refreshList(); broadcast(); }
+    private void clearAll()  { deleteAll(); refreshList(); broadcast(); }
 
     private void deleteAll() {
         File[] fs = uploadFolder.listFiles(File::isFile);
-        if (fs == null) return;
-        for (File f : fs) f.delete();
+        if (fs != null) for (File f : fs) f.delete();
     }
 
-    /** Notifies all connected browsers that the file list has changed. */
     private void broadcast() {
-        if (sessionManager != null && powerOn) {
-            sessionManager.broadcastFilesChanged();
-        }
+        if (powerOn && sessionManager != null) sessionManager.broadcastFilesChanged();
     }
 
     private void refreshList() {
-        fileList.getItems().clear();
         File[] fs = uploadFolder.listFiles(File::isFile);
+        fileList.getItems().clear();
         if (fs != null) {
             Arrays.sort(fs, Comparator.comparing(f -> f.getName().toLowerCase()));
             for (File f : fs)
                 fileList.getItems().add(f.getName() + " (" + fmt(f.length()) + ")");
         }
-        updateStats();
-    }
-
-    private void updateStats() {
-        File[] fs  = uploadFolder.listFiles(File::isFile);
-        int    cnt = fs != null ? fs.length : 0;
-        Platform.runLater(() -> countBadge.setText(cnt + (cnt == 1 ? " file" : " files")));
+        int cnt = fs != null ? fs.length : 0;
+        if (countBadge != null) countBadge.setText(cnt + (cnt == 1 ? " file" : " files"));
     }
 
     private String fmt(long b) {
-        if (b < 1_024)       return b + " B";
-        if (b < 1_048_576)   return String.format("%.1f KB", b / 1_024.0);
+        if (b < 1_024)         return b + " B";
+        if (b < 1_048_576)     return String.format("%.1f KB", b / 1_024.0);
         if (b < 1_073_741_824) return String.format("%.1f MB", b / 1_048_576.0);
         return String.format("%.1f GB", b / 1_073_741_824.0);
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // Helpers
-    // ══════════════════════════════════════════════════════════════════════
-
-
-    /**
-     * Shows a confirmation dialog before running a destructive action.
-     * Prevents accidental file deletion.
-     */
     private void confirmThenRun(String title, String body, Runnable action) {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle(title);
-        alert.setHeaderText(title);
-        alert.setContentText(body);
+        alert.setTitle(title); alert.setHeaderText(title); alert.setContentText(body);
         alert.initOwner(primaryStage);
-        alert.showAndWait().ifPresent(btn -> {
-            if (btn == ButtonType.OK) action.run();
-        });
+        alert.showAndWait().ifPresent(btn -> { if (btn == ButtonType.OK) action.run(); });
     }
 }
