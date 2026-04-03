@@ -1,85 +1,110 @@
-# 🚀 WebShare – Secure Local File Sharing over HTTPS
+# 🚀 WebShare -- Secure Local File Sharing over HTTPS
 
-WebShare is a **Java-based local file sharing server** that allows seamless and secure file transfer between devices on the same network using a web browser.
+WebShare is a **Java-based local file sharing server** that enables
+secure and seamless file transfer between devices on the same network
+using a web browser.
 
-It is designed to be a **cross-platform alternative to AirDrop / ShareIt**, with a strong focus on **security, performance, and reliability**.
+It works as a **cross-platform alternative to AirDrop / ShareIt**,
+focusing on **security, performance, and reliability**.
 
----
+------------------------------------------------------------------------
 
 ## ✨ Features
 
-### 🔐 Secure Authentication
-- Session-based login using access key
-- Protection against unauthorized access
-- Rate limiting for security
+-   🔐 Session-based authentication with access key\
+-   🔒 HTTPS support using self-signed certificates\
+-   📤 Chunked file upload with resume support\
+-   📥 Efficient file downloads with range requests\
+-   ⚙️ Temporary storage & upload management\
+-   🔍 SHA-256 checksum for file integrity\
+-   🛡️ Security features (CSP, XSS protection, sanitization)
 
-### 🔒 HTTPS Support
-- Runs on HTTPS using self-signed certificates
-- Certificate download support for:
-  - Android
-  - iOS
-  - Windows
-
-### 📤 Advanced File Upload
-- Chunked file upload for large files
-- Resume support for interrupted uploads
-- Concurrent upload handling
-
-### 📥 Efficient File Download
-- Supports resume (Range requests)
-- Optimized streaming using FileChannel
-
-### ⚙️ Backend Capabilities
-- Temporary storage management
-- Upload progress tracking
-- SHA-256 checksum for file integrity
-
-### 🛡️ Security Features
-- Content Security Policy (CSP)
-- XSS protection
-- Path traversal prevention
-- File validation & sanitization
-
----
+------------------------------------------------------------------------
 
 ## 🛠️ Tech Stack
 
-- Java
-- Undertow (Lightweight web server)
-- TLS/SSL (HTTPS)
-- REST APIs
-- Concurrent Programming
+-   Java\
+-   Undertow\
+-   TLS/SSL\
+-   REST APIs\
+-   Concurrent Programming
 
----
+------------------------------------------------------------------------
 
 ## 🧠 How It Works
 
-1. Start the server
-2. Access the generated HTTPS URL on another device
-3. Enter the access key
-4. Upload/download files securely via browser
+1.  Start the server\
+2.  Open the generated HTTPS URL on another device\
+3.  Enter the access key\
+4.  Upload/download files via browser
 
----
+------------------------------------------------------------------------
 
-## 📸 Screenshots
+## 📂 Project Structure
 
-_Add screenshots or demo GIF here_
+WebShare/ │── src/ \# Source code │── .tmp/ \# Temporary upload storage
+│── cert/ \# Certificates │── README.md
 
----
+------------------------------------------------------------------------
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Java 8 or higher
+### 📋 Prerequisites
 
-### Run the Project
+-   Java 8 or higher
 
-```bash
-# Clone the repository
-git clone https://github.com/Suyash1608/WebShare.git
+### ▶️ Run the Project
 
-# Navigate to project directory
-cd WebShare
+git clone https://github.com/Suyash1608/WebShare.git cd WebShare javac
+\*.java java Main
 
-# Compile and run
-# (Add your exact run command here)
+------------------------------------------------------------------------
+
+## 📸 Screenshots / Demo
+
+Add screenshots or screen recording here for better visibility.
+
+------------------------------------------------------------------------
+
+## 💡 Learnings
+
+-   Low-level HTTP handling\
+-   Secure backend design\
+-   File transfer optimization\
+-   Handling large files efficiently\
+-   Concurrency in real-world systems
+
+------------------------------------------------------------------------
+
+## 🚧 Future Improvements
+
+-   Better UI/UX\
+-   QR code for quick connection\
+-   Improved mobile responsiveness\
+-   Drag & drop upload\
+-   Performance optimizations
+
+------------------------------------------------------------------------
+
+## 🤝 Contributing
+
+Feel free to fork and contribute to this project.
+
+------------------------------------------------------------------------
+
+## 📌 Note
+
+🚧 This project is actively being improved with new features and
+optimizations.
+
+------------------------------------------------------------------------
+
+## 👨‍💻 Author
+
+Suyash Gupta
+
+------------------------------------------------------------------------
+
+## ⭐ Support
+
+If you like this project, consider giving it a ⭐
