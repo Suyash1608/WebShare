@@ -8,17 +8,27 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SessionManager {
 
+    // PIN has ~20 bits of entropy (000000–999999).
+    // Security against brute force depends entirely on RateLimiter holding.
+    // If the rate limiter is bypassed, the PIN falls quickly.
     private final String  accessKey;
+
     private volatile boolean uploadAllowed = false;
     private volatile boolean execAllowed   = false;
 
     // Single version counter — incremented on ANY state change
-    // (files added/removed, permissions changed)
-    // Browser compares its last known version — if different, refreshes
+    // (files added/removed, permissions changed).
+    // Browser compares its last known version — if different, refreshes.
     private final AtomicLong version = new AtomicLong(0);
 
     // ── Session tokens ─────────────────────────────────────────────────────
+    // Expired sessions are only evicted when checkSession() is called for that
+    // specific token. Tokens from clients that never re-authenticate accumulate
+    // until clearSessions() is called (on server stop). Acceptable for a LAN
+    // server; add a periodic sweep for broader deployments.
     private final Map<String, Long> sessionTokens = new ConcurrentHashMap<>();
+
+    // SESSION_TTL_MS applies from last activity (sliding window), not creation.
     private static final long SESSION_TTL_MS = 30 * 60 * 1000L;
 
     public SessionManager() {
@@ -40,6 +50,10 @@ public class SessionManager {
 
     public boolean checkKey(String key) {
         if (key == null) return false;
+        // constantTimeEquals always compares full strings — length check inside
+        // is safe here because the PIN is always exactly 6 digits and input is
+        // trimmed before calling. If the PIN length ever becomes variable, the
+        // length short-circuit in constantTimeEquals would leak that information.
         return constantTimeEquals(accessKey, key.trim());
     }
 
@@ -53,12 +67,14 @@ public class SessionManager {
 
     public boolean checkSession(String token) {
         if (token == null || token.isBlank()) return false;
-        Long created = sessionTokens.get(token);
-        if (created == null) return false;
-        if (System.currentTimeMillis() - created > SESSION_TTL_MS) {
+        Long lastSeen = sessionTokens.get(token);
+        if (lastSeen == null) return false;
+        if (System.currentTimeMillis() - lastSeen > SESSION_TTL_MS) {
             sessionTokens.remove(token);
             return false;
         }
+        // Sliding window — refresh TTL on every authenticated request
+        sessionTokens.put(token, System.currentTimeMillis());
         return true;
     }
 
@@ -68,7 +84,11 @@ public class SessionManager {
 
     public void clearSessions() { sessionTokens.clear(); }
 
-    public int activeSessionCount() { return sessionTokens.size(); }
+    /**
+     * Returns the number of stored session tokens, including expired ones
+     * not yet evicted. Use for diagnostics only — not a count of active sessions.
+     */
+    public int storedSessionCount() { return sessionTokens.size(); }
 
     // ── Upload / exec toggles ──────────────────────────────────────────────
 
@@ -92,6 +112,12 @@ public class SessionManager {
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
+    /**
+     * Constant-time string comparison — prevents timing attacks on the PIN.
+     * Early-exits on length mismatch, which technically leaks whether the
+     * submitted PIN has the correct length. Safe here because the PIN is
+     * always exactly 6 digits and input is validated before this call.
+     */
     private boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) return false;
         if (a.length() != b.length()) return false;
