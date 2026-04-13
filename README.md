@@ -1,163 +1,114 @@
-# 🚀 WebShare -- Secure Local File Sharing over HTTPS
+# 🚀 WebShare — Secure Local File Sharing over HTTPS
 
-WebShare is a **Java-based local file sharing application** that enables
-secure and seamless file transfer between devices on the same network
-using a web browser.
+A high-performance **Java-based local file sharing application** that enables secure and seamless file transfer between devices on the same network using a web browser. It works as a cross-platform alternative to AirDrop / ShareIt, focusing on **security, performance, and reliability**.
 
-It works as a **cross-platform alternative to AirDrop / ShareIt**,
-focusing on **security, performance, and reliability**.
-
----
-
-## 📥 Download Application (Windows)
-
-👉 **Direct Download:**  
-https://drive.google.com/uc?export=download&id=1h4XK_uFIvxyrYcq2Pm9n01xnvgs0O_my  
-
-⚠️ **Note:**
-- Windows only  
-- No Java installation required  
-
----
-
-## ▶️ How to Use (For Users)
-
-1. Download the application  
-2. Extract the ZIP file  
-3. Run the `.exe` file  
-
-💻 Once the app starts:
-- Click **Start Server**  
-- Copy the generated HTTPS URL  
-
-📱 On another device (same Wi-Fi):
-- Open the URL in a browser  
-- Enter the access key  
-
-📂 Upload and download files easily  
-
----
-
-## ✨ Features
-
-- 🔐 Session-based authentication with access key  
-- 🔒 HTTPS support using self-signed certificates  
-- 📤 Chunked file upload with resume support  
-- 📥 Efficient file downloads with range requests  
-- ⚙️ Temporary storage & upload management  
-- 🔍 SHA-256 checksum for file integrity  
-- 🛡️ Security features (CSP, XSS protection, sanitization)  
-
----
+-----
 
 ## 🛠️ Tech Stack
 
-- Java  
-- JavaFX (Desktop UI)  
-- Undertow  
-- TLS/SSL  
-- REST APIs  
-- Concurrent Programming  
+| Layer | Technology |
+|-------|-----------|
+| Language | Java 17+ |
+| Desktop UI | JavaFX 21 |
+| Web Server | Undertow (High-performance NIO) |
+| Security | TLS/SSL + SHA-256 Checksum |
+| Build Tool | Maven |
+| Networking | REST APIs & Concurrent Programming |
 
----
+-----
 
-## 🧠 How It Works
+## 📁 Project Structure
 
-1. Start the server from the desktop app  
-2. Open the generated HTTPS URL on another device  
-3. Enter the access key  
-4. Upload/download files via browser  
+```
+WebShare/
+├── src/main/java/com/suyash/webshare/
+│   ├── controller/      # JavaFX UI logic
+│   ├── server/          # Undertow server core
+│   ├── handlers/        # API handlers (Upload/Download)
+│   ├── security/        # SSL/TLS & Access Key management
+│   └── util/            # Hashing & file sanitization
+├── cert/                # SSL Certificates
+├── .tmp/                # Temporary upload storage
+└── README.md
+```
 
----
+-----
 
-## 👨‍💻 Run from Source (For Developers)
+## ⚙️ Setup & Run
 
-### 📋 Prerequisites
+### Prerequisites
 
-- Java 17 or higher  
-- Maven installed  
-- JavaFX SDK (version 21)
+  - Java 17+
+  - Maven 3.6+
+  - JavaFX SDK 21
 
-👉 Download JavaFX SDK: https://gluonhq.com/products/javafx/  
-👉 Extract it (example: C:\javafx-sdk-21.0.10)
+### Steps
 
----
+1.  **Clone the repository**
 
-### ▶️ Steps
+    ```bash
+    git clone https://github.com/Suyash1608/WebShare.git
+    cd WebShare
+    ```
 
-1. Clone the repository  
-git clone https://github.com/Suyash1608/WebShare.git  
-cd WebShare  
+2.  **Build the project**
 
-2. Build the project  
-mvn clean package  
+    ```bash
+    mvn clean package
+    ```
 
-3. Run the application  
+3.  **Run the application**
 
-👉 Windows:  
-java --module-path "C:\javafx-sdk-21.0.10\lib" --add-modules javafx.controls,javafx.fxml -jar target/WebShare-0.0.1-SNAPSHOT.jar  
+    **Windows:**
 
-👉 Mac/Linux:  
-java --module-path /path/to/javafx-sdk-21.0.10/lib --add-modules javafx.controls,javafx.fxml -jar target/WebShare-0.0.1-SNAPSHOT.jar  
+    ```bash
+    java --module-path "C:\path\to\javafx-sdk-21\lib" --add-modules javafx.controls,javafx.fxml -jar target/WebShare-0.0.1-SNAPSHOT.jar
+    ```
 
----
+-----
 
-## ⚠️ Notes
+## 🔐 Security
 
-- Both devices must be on the same Wi-Fi network  
-- Allow firewall access if prompted  
-- Browser may show HTTPS warning (self-signed certificate)  
+This application implements multiple layers of security for local transfers:
 
----
+1.  **HTTPS Encryption:** Uses TLS/SSL to prevent packet sniffing on shared Wi-Fi networks.
+2.  **Access Key:** Session-based authentication requiring a generated key for browser access.
+3.  **Integrity:** Automatic **SHA-256 checksum** verification for all transferred files.
 
-## 📂 Project Structure
+-----
 
-WebShare/  
-│── src/        # Source code  
-│── .tmp/       # Temporary upload storage  
-│── cert/       # Certificates  
-│── README.md  
+## 📡 API Endpoints
 
----
+### File Operations
 
-## 📸 Screenshots / Demo
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| GET | `/api/files` | Auth | List all shared files |
+| POST | `/api/upload` | Auth | Chunked file upload with resume support |
+| GET | `/api/download/{id}` | Auth | Download file with Range Request support |
+| DELETE | `/api/files/{id}` | Auth | Remove file from server |
 
-_Add screenshots or screen recordings here_
+-----
 
----
+## 📥 Download (Windows)
 
-## 💡 Learnings
+👉 **Direct Download:** [Click Here](https://www.google.com/search?q=https://drive.google.com/uc%3Fexport%3Ddownload%26id%3D1h4XK_uFIvxyrYcq2Pm9n01xnvgs0O_my)
 
-- Low-level HTTP handling  
-- Secure backend design  
-- File transfer optimization  
-- Handling large files efficiently  
-- Concurrency in real-world systems  
+*Note: The standalone version requires no Java installation.*
 
----
+-----
 
-## 🚧 Future Improvements
+## ✅ Key Features
 
-- Better UI/UX  
-- QR code for quick connection  
-- Drag & drop upload  
-- Mobile responsiveness  
-- Performance optimizations  
+  - **Cross-Platform:** Transfer between Android, iOS, Windows, Mac, and Linux via browser.
+  - **Chunked Uploads:** Efficiently handles large files by splitting data into chunks.
+  - **Resumable Downloads:** Supports HTTP Range requests to resume interrupted transfers.
+  - **Zero Cloud Reliance:** Files never leave your local network, ensuring 100% privacy.
+  - **Responsive Web UI:** Clean, mobile-friendly interface for the receiving device.
 
----
+-----
 
-## 🤝 Contributing
+## 👤 Author
 
-Feel free to fork and contribute to this project.
-
----
-
-## 👨‍💻 Author
-
-**Suyash Gupta**
-
----
-
-## ⭐ Support
-
-If you like this project, consider giving it a ⭐ on GitHub!
+**Suyash Gupta** — Java Backend Developer  
+[LinkedIn](https://www.google.com/search?q=https://linkedin.com/in/suyash-16d08m/) | [GitHub](https://www.google.com/search?q=https://github.com/Suyash1608)
