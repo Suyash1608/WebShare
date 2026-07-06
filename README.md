@@ -111,4 +111,4 @@ This application implements multiple layers of security for local transfers:
 ## 👤 Author
 
 **Suyash Gupta** — Java Backend Developer  
-[LinkedIn](https://www.google.com/search?q=https://linkedin.com/in/suyash-16d08m/) | [GitHub](https://www.google.com/search?q=https://github.com/Suyash1608)
+[LinkedIn](https://linkedin.com/in/suyash-16d08m/) | [GitHub](https://github.com/Suyash1608)
